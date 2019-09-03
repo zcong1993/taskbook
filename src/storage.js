@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const config = require('./config');
 const render = require('./render');
+const { createInstance } = require('./dynamo');
 
 const {basename, join} = path;
 
@@ -16,6 +17,8 @@ class Storage {
     this._tempDir = join(this._mainAppDir, '.temp');
     this._archiveFile = join(this._archiveDir, 'archive.json');
     this._mainStorageFile = join(this._storageDir, 'storage.json');
+    this._mainStorageDynamoKey = 'storage.json';
+    this._archiveDynamoKey = 'storage.json';
 
     this._ensureDirectories();
   }
@@ -34,6 +37,26 @@ class Storage {
     }
 
     return join(taskbookDirectory, '.taskbook');
+  }
+
+  _checkAndGetDynamoInstance() {
+    const { dynamoBaseUrl, dynamoToken, dynamoNamespace } = config.get();
+    if (!dynamoBaseUrl) {
+      render.missingConfig('dynamoBaseUrl');
+      process.exit(1);
+    }
+
+    if (!dynamoToken) {
+      render.missingConfig('dynamoToken');
+      process.exit(1);
+    }
+
+    if (!dynamoNamespace) {
+      render.missingConfig('dynamoNamespace');
+      process.exit(1);
+    }
+
+    return createInstance(dynamoBaseUrl, dynamoToken);
   }
 
   _ensureMainAppDir() {
@@ -86,12 +109,41 @@ class Storage {
     return join(this._tempDir, tempFilename);
   }
 
-  get() {
+  async _getFromDynamo() {
+    const instance = this._checkAndGetDynamoInstance();
+    const { dynamoNamespace } = config.get();
+    try {
+      let data = {};
+      const res = await instance.get(`/api/${dynamoNamespace}/${this._mainStorageDynamoKey}`);
+      if (res.data.value) {
+        data = JSON.parse(res.data.value);
+      }
+      return data;
+    } catch(err) {
+      return {};
+    }
+  }
+
+  async _setToDynamo(data) {
+    const instance = this._checkAndGetDynamoInstance();
+    const { dynamoNamespace } = config.get();
+    try {
+      await instance.put(`/api/${dynamoNamespace}/${this._mainStorageDynamoKey}`, data);
+    } catch(err) {}
+  }
+
+  async get() {
     let data = {};
 
-    if (fs.existsSync(this._mainStorageFile)) {
-      const content = fs.readFileSync(this._mainStorageFile, 'utf8');
-      data = JSON.parse(content);
+    const { useDynamo } = config.get();
+
+    if (useDynamo) {
+      data = await this._getFromDynamo();
+    } else {
+      if (fs.existsSync(this._mainStorageFile)) {
+        const content = fs.readFileSync(this._mainStorageFile, 'utf8');
+        data = JSON.parse(content);
+      }
     }
 
     return data;
@@ -108,12 +160,18 @@ class Storage {
     return archive;
   }
 
-  set(data) {
-    data = JSON.stringify(data, null, 4);
-    const tempStorageFile = this._getTempFile(this._mainStorageFile);
+  async set(data) {
+    const { useDynamo } = config.get();
 
-    fs.writeFileSync(tempStorageFile, data, 'utf8');
-    fs.renameSync(tempStorageFile, this._mainStorageFile);
+    if (useDynamo) {
+      await this._setToDynamo(data);
+    } else {
+      data = JSON.stringify(data, null, 4);
+      const tempStorageFile = this._getTempFile(this._mainStorageFile);
+
+      fs.writeFileSync(tempStorageFile, data, 'utf8');
+      fs.renameSync(tempStorageFile, this._mainStorageFile);
+    }
   }
 
   setArchive(archive) {

@@ -218,6 +218,17 @@ class Render {
     error({prefix, message});
   }
 
+  errorHttpRequest(message) {
+    const prefix = '\n';
+    error({prefix, message});
+  }
+
+  missingConfig(key) {
+    const [prefix, suffix] = ['\n', grey(key)];
+    const message = 'Missing required config, key:';
+    error({prefix, message, suffix});
+  }
+
   markComplete(ids) {
     if (ids.length === 0) {
       return;

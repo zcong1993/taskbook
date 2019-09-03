@@ -15,7 +15,7 @@ class Taskbook {
     return this._storage.getArchive();
   }
 
-  get _data() {
+  _data() {
     return this._storage.get();
   }
 
@@ -23,8 +23,8 @@ class Taskbook {
     return Array.isArray(x) ? x : [x];
   }
 
-  _save(data) {
-    this._storage.set(data);
+  async _save(data) {
+    await this._storage.set(data);
   }
 
   _saveArchive(data) {
@@ -35,13 +35,20 @@ class Taskbook {
     return [...new Set(this._arrayify(x))];
   }
 
-  _generateID(data = this._data) {
+  async _generateID(data) {
+    if (!data) {
+      data = await this._data();
+    }
     const ids = Object.keys(data).map(id => parseInt(id, 10));
     const max = (ids.length === 0) ? 0 : Math.max(...ids);
     return max + 1;
   }
 
-  _validateIDs(inputIDs, existingIDs = this._getIDs()) {
+  async _validateIDs(inputIDs, existingIDs) {
+    if (!existingIDs) {
+      existingIDs = await this._getIDs()
+    }
+
     if (inputIDs.length === 0) {
       render.missingID();
       process.exit(1);
@@ -63,8 +70,8 @@ class Taskbook {
     return ['p:1', 'p:2', 'p:3'].indexOf(x) > -1;
   }
 
-  _getBoards() {
-    const {_data} = this;
+  async _getBoards() {
+    const _data = await this._data();
     const boards = ['My Board'];
 
     Object.keys(_data).forEach(id => {
@@ -74,7 +81,11 @@ class Taskbook {
     return boards;
   }
 
-  _getDates(data = this._data) {
+  async _getDates(data) {
+    if (!data) {
+      data = await this._data();
+    }
+
     const dates = [];
 
     Object.keys(data).forEach(id => {
@@ -86,7 +97,10 @@ class Taskbook {
     return dates;
   }
 
-  _getIDs(data = this._data) {
+  async _getIDs(data) {
+    if (!data) {
+      data = await this._data();
+    }
     return Object.keys(data).map(id => parseInt(id, 10));
   }
 
@@ -95,7 +109,7 @@ class Taskbook {
     return opt ? opt[opt.length - 1] : 1;
   }
 
-  _getOptions(input) {
+  async _getOptions(input) {
     const [boards, desc] = [[], []];
 
     if (input.length === 0) {
@@ -103,7 +117,7 @@ class Taskbook {
       process.exit(1);
     }
 
-    const id = this._generateID();
+    const id = await this._generateID();
     const priority = this._getPriority(input);
 
     input.forEach(x => {
@@ -121,8 +135,8 @@ class Taskbook {
     return {boards, description, id, priority};
   }
 
-  _getStats() {
-    const {_data} = this;
+  async _getStats() {
+    const _data = await this._data();
     let [complete, inProgress, pending, notes] = [0, 0, 0, 0];
 
     Object.keys(_data).forEach(id => {
@@ -201,7 +215,10 @@ class Taskbook {
     return data;
   }
 
-  _filterByAttributes(attr, data = this._data) {
+  async _filterByAttributes(attr, data) {
+    if (!data) {
+      data = await this._data();
+    }
     if (Object.keys(data).length === 0) {
       return data;
     }
@@ -250,11 +267,14 @@ class Taskbook {
     return data;
   }
 
-  _groupByBoard(data = this._data, boards = this._getBoards()) {
+  async _groupByBoard(data, boards = []) {
+    if (!data) {
+      data = await this._data();
+    }
     const grouped = {};
 
     if (boards.length === 0) {
-      boards = this._getBoards();
+      boards = await this._getBoards();
     }
 
     Object.keys(data).forEach(id => {
@@ -273,7 +293,13 @@ class Taskbook {
     return grouped;
   }
 
-  _groupByDate(data = this._data, dates = this._getDates()) {
+  async _groupByDate(data, dates) {
+    if (!data) {
+      data = await this._data();
+    }
+    if (!dates) {
+     dates = await this._getDates();
+    }
     const grouped = {};
 
     Object.keys(data).forEach(id => {
@@ -292,9 +318,9 @@ class Taskbook {
     return grouped;
   }
 
-  _saveItemToArchive(item) {
+  async _saveItemToArchive(item) {
     const {_archive} = this;
-    const archiveID = this._generateID(_archive);
+    const archiveID = await this._generateID(_archive);
 
     item._id = archiveID;
     _archive[archiveID] = item;
@@ -302,9 +328,9 @@ class Taskbook {
     this._saveArchive(_archive);
   }
 
-  _saveItemToStorage(item) {
-    const {_data} = this;
-    const restoreID = this._generateID();
+  async _saveItemToStorage(item) {
+    const _data = await this._data();
+    const restoreID = await this._generateID();
 
     item._id = restoreID;
     _data[restoreID] = item;
@@ -312,18 +338,18 @@ class Taskbook {
     this._save(_data);
   }
 
-  createNote(desc) {
-    const {id, description, boards} = this._getOptions(desc);
+  async createNote(desc) {
+    const {id, description, boards} = await this._getOptions(desc);
     const note = new Note({id, description, boards});
-    const {_data} = this;
+    const _data = await this._data();
     _data[id] = note;
     this._save(_data);
     render.successCreate(note);
   }
 
-  copyToClipboard(ids) {
+  async copyToClipboard(ids) {
     ids = this._validateIDs(ids);
-    const {_data} = this;
+    const _data = await this._data();
     const descriptions = [];
 
     ids.forEach(id => descriptions.push(_data[id].description));
@@ -332,9 +358,9 @@ class Taskbook {
     render.successCopyToClipboard(ids);
   }
 
-  checkTasks(ids) {
-    ids = this._validateIDs(ids);
-    const {_data} = this;
+  async checkTasks(ids) {
+    ids = await this._validateIDs(ids);
+    const _data = await this._data();
     const [checked, unchecked] = [[], []];
 
     ids.forEach(id => {
@@ -350,9 +376,9 @@ class Taskbook {
     render.markIncomplete(unchecked);
   }
 
-  beginTasks(ids) {
+  async beginTasks(ids) {
     ids = this._validateIDs(ids);
-    const {_data} = this;
+    const _data = await this._data();
     const [started, paused] = [[], []];
 
     ids.forEach(id => {
@@ -368,45 +394,45 @@ class Taskbook {
     render.markPaused(paused);
   }
 
-  createTask(desc) {
-    const {boards, description, id, priority} = this._getOptions(desc);
+  async createTask(desc) {
+    const {boards, description, id, priority} = await this._getOptions(desc);
     const task = new Task({id, description, boards, priority});
-    const {_data} = this;
+    const _data = await this._data();
     _data[id] = task;
     this._save(_data);
     render.successCreate(task);
   }
 
-  deleteItems(ids) {
-    ids = this._validateIDs(ids);
-    const {_data} = this;
+  async deleteItems(ids) {
+    ids = await this._validateIDs(ids);
+    const _data = await this._data();
 
-    ids.forEach(id => {
-      this._saveItemToArchive(_data[id]);
-      delete _data[id];
-    });
+    for (const _id of ids) {
+      await this._saveItemToArchive(_data[_id]);
+      delete _data[_id];
+    }
 
-    this._save(_data);
+    await this._save(_data);
     render.successDelete(ids);
   }
 
-  displayArchive() {
-    render.displayByDate(this._groupByDate(this._archive, this._getDates(this._archive)));
+  async displayArchive() {
+    render.displayByDate(await this._groupByDate(this._archive, await this._getDates(this._archive)));
   }
 
-  displayByBoard() {
-    render.displayByBoard(this._groupByBoard());
+  async displayByBoard() {
+    render.displayByBoard(await this._groupByBoard());
   }
 
-  displayByDate() {
-    render.displayByDate(this._groupByDate());
+  async displayByDate() {
+    render.displayByDate(await this._groupByDate());
   }
 
-  displayStats() {
-    render.displayStats(this._getStats());
+  async displayStats() {
+    render.displayStats(await this._getStats());
   }
 
-  editDescription(input) {
+  async editDescription(input) {
     const targets = input.filter(x => x.startsWith('@'));
 
     if (targets.length === 0) {
@@ -428,15 +454,15 @@ class Taskbook {
       process.exit(1);
     }
 
-    const {_data} = this;
+    const _data = await this._data();
     _data[id].description = newDesc;
     this._save(_data);
     render.successEdit(id);
   }
 
-  findItems(terms) {
+  async findItems(terms) {
     const result = {};
-    const {_data} = this;
+    const _data = await this._data();
 
     Object.keys(_data).forEach(id => {
       if (!this._hasTerms(_data[id].description, terms)) {
@@ -446,12 +472,12 @@ class Taskbook {
       result[id] = _data[id];
     });
 
-    render.displayByBoard(this._groupByBoard(result));
+    render.displayByBoard(await this._groupByBoard(result));
   }
 
-  listByAttributes(terms) {
+  async listByAttributes(terms) {
     let [boards, attributes] = [[], []];
-    const storedBoards = this._getBoards();
+    const storedBoards = await this._getBoards();
 
     terms.forEach(x => {
       if (storedBoards.indexOf(`@${x}`) === -1) {
@@ -463,11 +489,11 @@ class Taskbook {
 
     [boards, attributes] = [boards, attributes].map(x => this._removeDuplicates(x));
 
-    const data = this._filterByAttributes(attributes);
-    render.displayByBoard(this._groupByBoard(data, boards));
+    const data = await this._filterByAttributes(attributes);
+    render.displayByBoard(await this._groupByBoard(data, boards));
   }
 
-  moveBoards(input) {
+  async moveBoards(input) {
     let boards = [];
     const targets = input.filter(x => x.startsWith('@'));
 
@@ -495,14 +521,14 @@ class Taskbook {
 
     boards = this._removeDuplicates(boards);
 
-    const {_data} = this;
+    const _data = await this._data();
     _data[id].boards = boards;
     this._save(_data);
     render.successMove(id, boards);
   }
 
-  restoreItems(ids) {
-    ids = this._validateIDs(ids, this._getIDs(this._archive));
+  async restoreItems(ids) {
+    ids = this._validateIDs(ids, await this._getIDs(this._archive));
     const {_archive} = this;
 
     ids.forEach(id => {
@@ -514,9 +540,9 @@ class Taskbook {
     render.successRestore(ids);
   }
 
-  starItems(ids) {
-    ids = this._validateIDs(ids);
-    const {_data} = this;
+  async starItems(ids) {
+    ids = await this._validateIDs(ids);
+    const _data = await this._data();
     const [starred, unstarred] = [[], []];
 
     ids.forEach(id => {
@@ -529,7 +555,7 @@ class Taskbook {
     render.markUnstarred(unstarred);
   }
 
-  updatePriority(input) {
+  async updatePriority(input) {
     const level = input.find(x => ['1', '2', '3'].indexOf(x) > -1);
 
     if (!level) {
@@ -552,15 +578,15 @@ class Taskbook {
     const [target] = targets;
     const id = this._validateIDs(target.replace('@', ''));
 
-    const {_data} = this;
+    const _data = await this._data();
     _data[id].priority = level;
     this._save(_data);
     render.successPriority(id, level);
   }
 
-  clear() {
+  async clear() {
     const ids = [];
-    const {_data} = this;
+    const _data = await this._data();
 
     Object.keys(_data).forEach(id => {
       if (_data[id].isComplete) {
@@ -572,7 +598,7 @@ class Taskbook {
       return;
     }
 
-    this.deleteItems(ids);
+    await this.deleteItems(ids);
   }
 }
 
