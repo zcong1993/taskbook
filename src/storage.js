@@ -18,7 +18,7 @@ class Storage {
     this._archiveFile = join(this._archiveDir, 'archive.json');
     this._mainStorageFile = join(this._storageDir, 'storage.json');
     this._mainStorageDynamoKey = 'storage.json';
-    this._archiveDynamoKey = 'storage.json';
+    this._archiveDynamoKey = 'archive.json';
 
     this._ensureDirectories();
   }
@@ -132,6 +132,29 @@ class Storage {
     } catch(err) {}
   }
 
+  async _getArchiveFromDynamo() {
+    const instance = this._checkAndGetDynamoInstance();
+    const { dynamoNamespace } = config.get();
+    try {
+      let data = {};
+      const res = await instance.get(`/api/${dynamoNamespace}/${this._archiveDynamoKey}`);
+      if (res.data.value) {
+        data = JSON.parse(res.data.value);
+      }
+      return data;
+    } catch(err) {
+      return {};
+    }
+  }
+
+  async _setArchiveToDynamo(data) {
+    const instance = this._checkAndGetDynamoInstance();
+    const { dynamoNamespace } = config.get();
+    try {
+      await instance.put(`/api/${dynamoNamespace}/${this._archiveDynamoKey}`, data);
+    } catch(err) {}
+  }
+
   async get() {
     let data = {};
 
@@ -149,12 +172,18 @@ class Storage {
     return data;
   }
 
-  getArchive() {
+  async getArchive() {
     let archive = {};
 
-    if (fs.existsSync(this._archiveFile)) {
-      const content = fs.readFileSync(this._archiveFile, 'utf8');
-      archive = JSON.parse(content);
+    const { useDynamo } = config.get();
+
+    if (useDynamo) {
+      archive = await this._getArchiveFromDynamo();
+    } else {
+      if (fs.existsSync(this._archiveFile)) {
+        const content = fs.readFileSync(this._archiveFile, 'utf8');
+        archive = JSON.parse(content);
+      }
     }
 
     return archive;
@@ -174,12 +203,17 @@ class Storage {
     }
   }
 
-  setArchive(archive) {
-    const data = JSON.stringify(archive, null, 4);
-    const tempArchiveFile = this._getTempFile(this._archiveFile);
+  async setArchive(archive) {
+    const { useDynamo } = config.get();
+    if (useDynamo) {
+      await this._setArchiveToDynamo(archive);
+    } else {
+      const data = JSON.stringify(archive, null, 4);
+      const tempArchiveFile = this._getTempFile(this._archiveFile);
 
-    fs.writeFileSync(tempArchiveFile, data, 'utf8');
-    fs.renameSync(tempArchiveFile, this._archiveFile);
+      fs.writeFileSync(tempArchiveFile, data, 'utf8');
+      fs.renameSync(tempArchiveFile, this._archiveFile);
+    }
   }
 }
 

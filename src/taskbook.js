@@ -11,7 +11,7 @@ class Taskbook {
     this._storage = new Storage();
   }
 
-  get _archive() {
+  _archive() {
     return this._storage.getArchive();
   }
 
@@ -27,8 +27,8 @@ class Taskbook {
     await this._storage.set(data);
   }
 
-  _saveArchive(data) {
-    this._storage.setArchive(data);
+  async _saveArchive(data) {
+    await this._storage.setArchive(data);
   }
 
   _removeDuplicates(x) {
@@ -319,7 +319,7 @@ class Taskbook {
   }
 
   async _saveItemToArchive(item) {
-    const {_archive} = this;
+    const _archive = await this._archive();
     const archiveID = await this._generateID(_archive);
 
     item._id = archiveID;
@@ -417,7 +417,8 @@ class Taskbook {
   }
 
   async displayArchive() {
-    render.displayByDate(await this._groupByDate(this._archive, await this._getDates(this._archive)));
+    const archive = await this._archive()
+    render.displayByDate(await this._groupByDate(archive, await this._getDates(archive)));
   }
 
   async displayByBoard() {
@@ -528,8 +529,8 @@ class Taskbook {
   }
 
   async restoreItems(ids) {
-    ids = this._validateIDs(ids, await this._getIDs(this._archive));
-    const {_archive} = this;
+    const _archive = await this._archive();
+    ids = this._validateIDs(ids, await this._getIDs(_archive));
 
     ids.forEach(id => {
       this._saveItemToStorage(_archive[id]);
