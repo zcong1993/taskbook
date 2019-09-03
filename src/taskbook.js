@@ -508,7 +508,7 @@ class Taskbook {
     }
 
     const [target] = targets;
-    const id = this._validateIDs(target.replace('@', ''));
+    const id = await this._validateIDs(target.replace('@', ''));
 
     input.filter(x => x !== target).forEach(x => {
       boards.push(x === 'myboard' ? 'My Board' : `@${x}`);
@@ -576,7 +576,7 @@ class Taskbook {
     }
 
     const [target] = targets;
-    const id = this._validateIDs(target.replace('@', ''));
+    const id = await this._validateIDs(target.replace('@', ''));
 
     const _data = await this._data();
     _data[id].priority = level;
